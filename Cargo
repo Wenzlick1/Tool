@@ -1,0 +1,83 @@
+import streamlit as st
+import math
+import itertools
+
+st.title("📦✈️ Cargo Fit Checker")
+st.write("Check if a box will fit through the cargo door and into a tapered cargo hold")
+
+st.header("1️⃣ Enter Box Dimensions (in inches)")
+box_length = st.number_input("Box Length", min_value=1)
+box_width = st.number_input("Box Width", min_value=1)
+box_height = st.number_input("Box Height", min_value=1)
+
+st.header("2️⃣ Enter Cargo Door Dimensions (in inches)")
+door_width = st.number_input("Door Width", min_value=1)
+door_height = st.number_input("Door Height", min_value=1)
+
+st.header("3️⃣ Enter Cargo Hold Dimensions (in inches)")
+hold_length = st.number_input("Hold Length", min_value=1)
+hold_height = st.number_input("Hold Height", min_value=1)
+hold_forward_width = st.number_input("Forward Width (Wider End)", min_value=1)
+hold_aft_width = st.number_input("Aft Width (Narrower End)", min_value=1)
+
+# Function to check if box fits through the door (flat or angled)
+def fits_through_door(box_dims, door_dims):
+    for i in range(3):
+        for j in range(3):
+            if i != j:
+                face1 = box_dims[i]
+                face2 = box_dims[j]
+                if (face1 <= door_dims[0] and face2 <= door_dims[1]) or \
+                   (math.hypot(face1, face2) <= math.hypot(door_dims[0], door_dims[1])):
+                    return True
+
+    # Check if full 3D diagonal can pass through the door opening (angled insertion)
+    box_diagonal = math.sqrt(sum(d**2 for d in box_dims))
+    door_diag = math.sqrt(door_dims[0]**2 + door_dims[1]**2)
+    if box_diagonal <= door_diag:
+        return True
+
+    return False
+
+# Function to calculate width at a point along the cargo hold
+def width_at_position(position, length, fwd_width, aft_width):
+    return fwd_width - (fwd_width - aft_width) * (position / length)
+
+# Function to check if the box fits in the tapered hold with any orientation
+def fits_in_tapered_hold_any_orientation(box_dims, hold_length, hold_height, fwd_width, aft_width):
+    for dims in itertools.permutations(box_dims):
+        box_length, box_width, box_height = dims
+        if box_height > hold_height or box_length > hold_length:
+            continue
+
+        # Check width clearance at several positions along the hold
+        step = 1
+        fits = False
+        for pos in range(0, hold_length - box_length + 1, step):
+            start_width = width_at_position(pos, hold_length, fwd_width, aft_width)
+            end_width = width_at_position(pos + box_length, hold_length, fwd_width, aft_width)
+            if min(start_width, end_width) >= box_width:
+                fits = True
+                break
+
+        if fits:
+            return True
+
+    return False
+
+# Perform checks
+box_dims = (box_length, box_width, box_height)
+door_dims = (door_width, door_height)
+
+if all([box_length, box_width, box_height, door_width, door_height, hold_length, hold_height, hold_forward_width, hold_aft_width]):
+    st.header("📊 Results")
+
+    if fits_through_door(box_dims, door_dims):
+        st.success("✅ Box fits through the cargo door (flat or angled)")
+    else:
+        st.error("❌ Box does NOT fit through the cargo door")
+
+    if fits_in_tapered_hold_any_orientation(box_dims, hold_length, hold_height, hold_forward_width, hold_aft_width):
+        st.success("✅ Box fits in the tapered cargo hold (in some orientation)")
+    else:
+        st.error("❌ Box does NOT fit in the tapered cargo hold")
